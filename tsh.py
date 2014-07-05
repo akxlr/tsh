@@ -3,6 +3,11 @@ import numpy.linalg as npla
 import numpy.random as npr
 from numpy.testing import assert_allclose
 import math
+from matplotlib import pyplot as plt
+
+# Tolerances for assert_allclose (floating point equality assertions)
+_RTOL = 1e-03
+_ATOL = 1e-08
 
 alphabet = "abcdefghijklmnopqrstuvwxyz"
 np.set_printoptions(precision=2)
@@ -100,46 +105,57 @@ def graph_p(p, letter_idx):
 def letter_prob(p, letter):
     """Input: probability of each value
        Output: probability of each letter count"""
-    assert_allclose(np.sum(p), 1)
-    buckets = np.zeros(100)
+    assert_allclose(np.sum(p), 1, rtol=_RTOL, atol=_ATOL)
+    buckets = np.zeros(100, dtype='float64')
     for n in range(p.size):
         buckets[letter_counts[n, letter]] += p[n]
-    assert_allclose(np.sum(buckets), 1)
+    assert_allclose(np.sum(buckets), 1, rtol=_RTOL, atol=_ATOL)
     return buckets
 
 def prob_sum(p1, p2):
     """Probability distribution of sum of two random variables. See http://www.statlect.com/sumdst1.htm."""
     # We assume sum will never be greater than 99 so p will always have enough elements - this is
     # equivalent to assuming no values in solution are greater than 99
-    assert_allclose(np.sum(p1), 1)
-    assert_allclose(np.sum(p2), 1)
-    p = np.zeros_like(p1)
+    assert_allclose(np.sum(p1), 1, rtol=_RTOL, atol=_ATOL)
+    assert_allclose(np.sum(p2), 1, rtol=_RTOL, atol=_ATOL)
+    p = np.zeros_like(p1, dtype='float64')
     for n in range(p.size):
-        p[n] = sum(p1[x] * p2[n - x] for x in range(0, n + 1))
-    assert_allclose(np.sum(p), 1)
+        p[n] = min(1, sum(p1[x] * p2[n - x] for x in range(0, n + 1)))
+    assert_allclose(np.sum(p), 1, rtol=_RTOL, atol=_ATOL)
     return p
 
 def prob(iterations):
     domain = minmax(10)
     # Initialise each letter to uniform distribution
-    p_mat = np.zeros_like(letter_counts, dtype='float')
+    p_mat = np.zeros_like(letter_counts, dtype='float64')
     for i in range(len(alphabet)):
         p_mat[domain[i], i] = 1/(domain[i].stop - domain[i].start)
 
     for iteration in range(iterations):
+        new_p_mat = np.zeros_like(p_mat, dtype='float64')
         for i in range(len(alphabet)):
             # Calculate new distribution for letter i
             # Start with [1, 0, ..., 0] (length 100), then repeatedly update using rule for sum of random variables.
             # Result is that each entry of p_total is the probability of letter i being that number based on current
             # distribution stored in p
-            p_total = np.zeros(letter_counts.shape[0])
+            p_total = np.zeros(letter_counts.shape[0], dtype='float64')
             p_total[0] = 1 # [1, 0, 0, ..., 0] is the identity element for prob_sum
             for j in range(len(alphabet)):
                 p_total = prob_sum(p_total, letter_prob(p_mat[:, j], i))
 
             # np.roll shifts array elements right a certain number of places - this is necessary for the bias b
-            p_mat[:, i] = np.roll(p_total, b[i])
-    return p_mat[:, 4] # e
+            new_p_mat[:, i] = np.roll(p_total, b[i])
+        p_mat = new_p_mat
+        plt.bar(range(100), p_mat[:, alphabet.index('s')])
+        plt.savefig('s%s.png' % iteration)
+        plt.clf()
+        plt.bar(range(100), p_mat[:, alphabet.index('t')])
+        plt.savefig('t%s.png' % iteration)
+        plt.clf()
+        plt.bar(range(100), p_mat[:, alphabet.index('f')])
+        plt.savefig('f%s.png' % iteration)
+        plt.clf()
+    return p_mat
 
 
 
