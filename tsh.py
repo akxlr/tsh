@@ -4,6 +4,7 @@ import numpy.random as npr
 from numpy.testing import assert_allclose
 import math
 from matplotlib import pyplot as plt
+from scipy.stats import rv_discrete
 
 # Tolerances for assert_allclose (floating point equality assertions)
 _RTOL = 1e-03
@@ -55,24 +56,28 @@ def f(u):
 def error(u):
     return npla.norm(f(u)-u)
 
-def gd(v, iterations):
-    """Gradient descent starting at v=[n_a, n_b, ..., n_z] for a given number of iterations, return final v"""
-    for iteration in range(iterations):
+def gd(v):
+    """Gradient descent starting at v=[n_a, n_b, ..., n_z]"""
+    while(True):
         e = error(v)
-        new_v = v.copy()
-        # Check each of the 26 directions, move in one of them (or stay put if no direction reduces error)
+        # Check each of the 26 directions, move in one of them (or return if no direction reduces error)
+        changed = False
         for i in range(len(alphabet)):
             v[i] += 1
             if error(v) < e:
                 e = error(v)
                 new_v = v.copy()
+                changed = True
             v[i] -= 2
             if error(v) < e:
                 e = error(v)
                 new_v = v.copy()
+                changed = True
             v[i] += 1
-        v = new_v
-    return v
+        if not changed:
+            return v
+        else:
+            v = new_v
 
 def domain_size(domain):
     """Return cardinality of domain given a set of restrictions, i.e. number of iterations required to brute
@@ -132,6 +137,7 @@ def prob(iterations):
         p_mat[domain[i], i] = 1/(domain[i].stop - domain[i].start)
 
     for iteration in range(iterations):
+        print("Iteration %s" % iteration)
         new_p_mat = np.zeros_like(p_mat, dtype='float64')
         for i in range(len(alphabet)):
             # Calculate new distribution for letter i
@@ -174,7 +180,39 @@ def iter(v, iterations):
 def rand_start(domain):
     return np.array([npr.randint(s.start, s.stop) for s in domain])
 
-def solve(iterations):
+# def sample(p, size):
+#     bins = np.add.accumulate(p)
+#     return np.array([np.digitize(npr.random_sample(size), bins[:, i]) for i in range(p.shape[1]))
+
+def solve_2(iterations):
+    """Draw random samples according to the distribution of values
+       found when prob() converges, and hope one is a solution."""
+    # Empirically prob() converges after ~10 iterations, should probably
+    # make this concrete. Also, more than 10 iterations causes numerical assertion
+    # errors, not sure why...
+
+    # Output of prob(10) is cached on disk using np.save since it takes a while
+    p_mat = np.load("prob_10.npy")
+    # I can't find a way of sampling from a multivariate discrete distribution
+    # in numpy directly, so we use 26 univariate samplers
+    dist = [rv_discrete(values=(np.arange(p_mat.shape[0]), p_mat[:, i])) for i in range(len(alphabet))]
+    batch_size = 100
+    best = z
+    e = error(z)
+    for iteration in range(iterations):
+        print("Iteration %s (batch size %s)" % (iteration, batch_size))
+        samples = np.array([dist[i].rvs(size=batch_size) for i in range(len(alphabet))]).T
+        print("  Generated %s samples, trying gd-iter-gd on all..." % batch_size)
+        for v in samples:
+            v = gd(iter(gd(v), 100))
+            if error(v) < e:
+                e = error(v)
+                best = v
+        print("  Best error so far %s" % e)
+    return best
+
+
+def solve_1(iterations):
     domain = minmax(10)
     best = z
     e = error(z)
