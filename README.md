@@ -1,0 +1,1 @@
+This sentence has three as, one b, two cs, two ds, thirty-six es, three fs, three gs, eleven hs, nine is, one j, one k, three ls, one m, eighteen ns, twelve os, one p, one q, eight rs, twenty-six ss, twenty ts, two us, five vs, seven ws, three xs, four ys and one z.
